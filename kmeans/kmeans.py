@@ -14,12 +14,10 @@ class kmeans(object):
 		
 		#store data if supplied
 		if not data is None:
-			self.InsertData(data,Rescale)
+			self.InsertData(data,Rescale)	
 		
 		
-		
-		
-	def InsertData(data,Rescale=True,labels=None):
+	def InsertData(self,data,Rescale=True,labels=None):
 		'''
 		This will take the data matrix in, rescale optionally, also store
 		labels if supplied.
@@ -27,17 +25,21 @@ class kmeans(object):
 		'''
 		
 		#use the shape to determine number of parameters and samples
-		if np.size(data.shape) != 2:
+		if np.size(data.shape) == 1:
+			data = np.array([data]).T
+		elif np.size(data.shape) > 2:
 			print("data needs to be a 2-D array, shape (m,n), where m is the number of samples, and n is the number of parameters")
+			return
 		self.m = data.shape[0]
 		self.n = data.shape[1]
 		
 		#store matrix
 		if Rescale:
-			self.data,self.scale = RescaleData(data)
+			self.data,self.scales,self.shifts = RescaleData(data)
 		else:
 			self.data = data
-			self.scale = None
+			self.scales = np.ones(self.n)
+			self.shifts = np.zeros(self.n)
 			
 		#now we know n, we can calculate the first cluster centroids
 		self._CalculateCentroids()
@@ -47,11 +49,14 @@ class kmeans(object):
 		Randomize positions of k centroids in n dimensional parameter 
 		space.
 		'''
-		
+		#randomly create the centroids
 		self.centroids = np.random.random_sample((self.k,self.n))
 		
+		#label the points with their nearest centroid
+		self._FindNearestCentroids()
 		
-	def Train(nSteps=10,Reset=False):
+		
+	def Train(self,nSteps=10,Reset=False):
 		'''
 		Steps the centroids towards the clusters.
 		
@@ -63,15 +68,25 @@ class kmeans(object):
 			
 		#loop through taking a step every time
 		for i in range(0,nSteps):
+			print('\rTraining step {0} of {1}'.format(i+1,nSteps),end='')
 			self._TrainStep()
+		print()
 			
-	def _TrainStep():
+	def _TrainStep(self):
 		'''
 		Takes a single step
 		
 		'''
+		#use the labels samples to calculate a new centre for the centroids
+		for i in range(0,self.k):
+			use = np.where(self.closest == i)[0]
+			if use.size > 0:
+				self.centroids[i] = np.mean(self.data[use],axis=0)
+			
+		#update the nearest centroid list
+		self._FindNearestCentroids()
 	
-	def _FindNearestCentroids():
+	def _FindNearestCentroids(self):
 		'''
 		Associates each point with its nearest centroid.
 		
@@ -82,3 +97,10 @@ class kmeans(object):
 			dist[i] = np.linalg.norm(self.data - self.centroids[i],axis=1)
 			
 		self.closest = dist.argmin(axis=0)
+
+	def UnscaledCentroids(self):
+		'''
+		Rescales the centroid coordinates back to the original scales. 
+		'''
+		
+		return UnscaleData(self.centroids,self.scales,self.shifts)
