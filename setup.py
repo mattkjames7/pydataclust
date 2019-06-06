@@ -6,14 +6,14 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="pykmeans",
+    name="pydataclust",
     version="0.0.1",
     author="Matthew Knight James",
     author_email="mattkjames7@gmail.com",
-    description="A simple k-means implementation",
+    description="A simple k-means and DBSCAN implementation",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/mattkjames7/pykmeans",
+    url="https://github.com/mattkjames7/pydataclust",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
