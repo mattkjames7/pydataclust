@@ -47,58 +47,109 @@ class dbscan(object):
 			print('Insert data before training, silly!')
 			return
 			
+		#calculate the distance matrix
+		self._CalculateDistances(epsilon)
+			
 		#start with a bunch of unclassified class labels
 		# The classes will be defined as follows:
 		# Noise = -1, unclassified = 0, part of a cluster = 1,2,3...
 		self.clusters = np.zeros(self.m,dtype='int32')
 		
+		#create empty neighbours array - appending an array takes bloody ages
+		#so hopefully this will be quicker
+		nbrs = np.zeros(self.m,dtype='int32')
+		nn = 0
+		
 		#set the starting point for the cluster IDs
 		clustID = 1
 		
+		#number of classified points
+		nc = 0
+		
 		#loop through each point
 		for i in range(0,self.m):
-
+			print('\rClusters: {:2d}, Classified points: {:6d}'.format(clustID,nc),end='')
 			#if it hasn't been classified yet...
 			if self.clusters[i] == 0:
 				#check for neighbours
-				nbrs = self._RangeQuery(i,epsilon)
-				if nbrs.size < minpts:
+				tmp = self._RangeQuery(i,epsilon)
+				nn = tmp.size
+				nbrs[0:nn] = tmp
+				
+				if nn < minpts:
 					#mark as noise if there aren't at least minpts 
 					#neighbours within epsilon
 					self.clusters[i] = -1
+					nn = 0
+					nc += 1
 				else:
 					#if we get to this bit, then this point must be a core point
 					self.clusters[i] = clustID
+					nc += 1
 					j = 0
-					while j < nbrs.size:
+					while j < nn:
 						if self.clusters[nbrs[j]] == -1:
 							#reassign from noise to part of a cluster
 							self.clusters[nbrs[j]] = clustID
 						elif self.clusters[nbrs[j]] == 0:
 							#assign unclassified to part of a cluster
 							self.clusters[nbrs[j]] = clustID
+							nc += 1
 							#find neighbours of this point
 							jnbrs = self._RangeQuery(nbrs[j],epsilon)
+	
+	
 							if jnbrs.size >= minpts:
 								use = np.zeros(jnbrs.size,dtype='bool')
 								for k in range(0,jnbrs.size):
-									use[k] = not jnbrs[k] in nbrs
-								use = np.where(jnbrs)[0]
-								nbrs = np.append(nbrs,jnbrs[use])
+									use[k] = not jnbrs[k] in nbrs[:nn]
+								use = np.where(use)[0]
+								if use.size > 0:
+									nbrs[nn:nn+use.size] = jnbrs[use]
+									nn += use.size
 						j+=1
+						print('\rClusters: {:2d}, Classified points: {:6d}'.format(clustID,nc),end='')
 					clustID += 1
-					
-					
+		print()		
+	
+	def _CalculateDistances(self,epsilon):
+		'''
+		this would hopefully create an array of arrays containing the 
+		indices of all the objects within range of each point.
+		'''
+	
+		self._dists = np.zeros((self.m,),dtype='object')
+		count = 0
+		MB = 1024*1024
+		for i in range(0,self.m):
+			print('\rCalculating distance matrix {:d} of {:d}, ~ {:6.1f} MB'.format(i+1,self.m,4*count/MB),end='')
+			R = np.linalg.norm(self.data - self.data[i],axis=1)
+			self._dists[i] = np.where((R < epsilon) & (self.datainds != i))[0]
+			count += self._dists[i].size
+		print()
+		
+		
+	def _CalculateDistanceMatrix(self,epsilon):
+		'''
+		This should calculate the distance of all points from each point
+		'''
+		self._dists = np.zeros((self.m,self.m),dtype='float32')
+		self._ineps = np.zeros((self.m,self.m),dtype='bool')
+		for i in range(0,self.m):
+			print('\rCalculating distance matrix {0} of {1}'.format(i+1,self.m),end='')
+			self._dists[i] = np.linalg.norm(self.data - self.data[i],axis=1)
+			self._ineps[i] = (self._dists[i] < epsilon) & (self.datainds != i)
+		print()
+		
+						
 					
 	def _RangeQuery(self,i,epsilon):
 		'''
 		find all of the points within epsilon distance of point i.
 		'''
-		pt = self.data[i]
-		#calculate the distances from all other points
-		R = np.linalg.norm(self.data - pt,axis=1)
+
 		#find the indices of the neighbours within range
-		use = np.where((R < epsilon) & (self.datainds != i))[0]
+		use = self._dists[i]
 		
 		return use
 		
